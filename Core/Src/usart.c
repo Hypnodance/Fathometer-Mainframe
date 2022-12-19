@@ -21,7 +21,8 @@
 #include "usart.h"
 
 /* USER CODE BEGIN 0 */
-
+#define PUT_CHAR_PROTOTYPE int __io_putchar(int ch)
+#define GET_CHAR_PROTOTYPE int __io_getchar(void)
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart1;
@@ -188,5 +189,14 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 }
 
 /* USER CODE BEGIN 1 */
+PUT_CHAR_PROTOTYPE {
+    HAL_UART_Transmit(&huart1, (uint8_t *) &ch, 1, 10);
+    return ch;
+}
 
+GET_CHAR_PROTOTYPE {
+    uint8_t ch = 0;
+    HAL_UART_Receive(&huart1, (uint8_t *) &ch, 1, 10);
+    return (int) ch;
+}
 /* USER CODE END 1 */
