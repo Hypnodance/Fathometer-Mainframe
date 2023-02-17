@@ -52,7 +52,7 @@ void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
-
+    if (*(volatile uint32_t *) ((RTC_INIT_FLAG_ADDR)) != RTC_INIT_FLAG_DATA) {
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date
@@ -75,6 +75,10 @@ void MX_RTC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
+        HAL_FLASH_Unlock();
+        HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, RTC_INIT_FLAG_ADDR, RTC_INIT_FLAG_DATA);
+        HAL_FLASH_Lock();
+    }
 
   /* USER CODE END RTC_Init 2 */
 

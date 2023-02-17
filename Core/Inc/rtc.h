@@ -35,7 +35,8 @@ extern "C" {
 extern RTC_HandleTypeDef hrtc;
 
 /* USER CODE BEGIN Private defines */
-
+#define RTC_INIT_FLAG_ADDR      0x0807D800
+#define RTC_INIT_FLAG_DATA      0x04020D0A
 /* USER CODE END Private defines */
 
 void MX_RTC_Init(void);
