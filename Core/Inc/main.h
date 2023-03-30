@@ -67,19 +67,19 @@ extern "C" {
 #define WRITE_FLASH_PROTOTYPE                   void G_WRITE_FLASH(uint32_t address, uint32_t data)
 #define ERASE_FLASH_PROTOTYPE                   void G_ERASE_FLASH(uint32_t address)
 #define SYSTEM_RESET_PROTOTYPE                  void G_SYSTEM_RESET()
-#define BAUD_RATE_SET_PROTOTYPE                 void G_BAUD_RATE_SET(int baud_rate)
-#define SN_PRINT_PROTOTYPE                      void G_SN_PRINT()
-#define SMS_REFRESH_PROTOTYPE                   void G_SMS_REFRESH()
-#define RELAY_CONTROL_REFRESH_PROTOTYPE         void G_RELAY_CONTROL_REFRESH()
-#define CONTROL_BUS_SET_PROTOTYPE               void G_SET_CONTROL_BUS(int status)
+#define SN_PRINT_PROTOTYPE                      void G_SN_PRINT(uint32_t loc)
+#define SMS_REFRESH_PROTOTYPE                   void G_SMS_REFRESH(int status)
+#define RELAY_CONTROL_REFRESH_PROTOTYPE         void G_RELAY_CONTROL_REFRESH(int status)
+#define CONTROL_COMMAND_SEND_PROTOTYPE          void G_CONTROL_COMMAND_SEND()
 #define RTC_DATETIME_PRINT(x)                   printf(x, 2000 + BCD_TO_DECIMAL(currentDate.Year), BCD_TO_DECIMAL(currentDate.Month), BCD_TO_DECIMAL(currentDate.Date), BCD_TO_DECIMAL(currentTime.Hours), BCD_TO_DECIMAL(currentTime.Minutes), BCD_TO_DECIMAL(currentTime.Seconds))
 #define CHAR_ASCII_CRITERION(x)                 (x >= 48 && x <= 57) || (x >= 65 && x <= 90) || (x >= 97 && x <= 122)
 #define CHAR_NUMBER_CRITERION(x)                (x >= 48 && x <= 57)
 #define GET_SYSTEM_VOLTAGE(x)                   ((x * 3.3 / 4096) * 2)
-#define GET_MAIN_VOLTAGE(x)                     ((x * 3.3 / 4096) * 9)
+#define GET_MAIN_VOLTAGE(x)                     ((x * 3.3 / 4096) * 9.33)
 #define DECIMAL_TO_BCD(x)                       (((x / 10) << 4) | (x % 10))
 #define BCD_TO_DECIMAL(x)                       (((x >> 4) * 10) + (x & 0x0F))
-#define CHAR_TO_INT(x)                          (x - 48)
+#define CHAR_TO_INT(x)                          (x <= 57 ? (x - 48) : (x - 55))
+#define FLASH_SECTOR_ADDRESS(x)                 (x * 4096)
 #define DATETIME_CRITERION(a, b, c, d, e, f)    (a >= 0 && a <= 99 && b >= 1 && b <= 12 && c >= 1 && c <= 31 && d >= 0 && d <= 23 && e >= 0 && e <= 59 && f >= 0 && f <= 59)
 /* USER CODE END EM */
 
@@ -113,18 +113,18 @@ void Error_Handler(void);
 #define RELAY_CONTROL_BIT_1_GPIO_Port GPIOC
 #define RELAY_CONTROL_BIT_2_Pin GPIO_PIN_12
 #define RELAY_CONTROL_BIT_2_GPIO_Port GPIOC
-#define RELAY_STATUS_0_Pin GPIO_PIN_3
-#define RELAY_STATUS_0_GPIO_Port GPIOB
-#define RELAY_STATUS_1_Pin GPIO_PIN_4
-#define RELAY_STATUS_1_GPIO_Port GPIOB
-#define RELAY_STATUS_2_Pin GPIO_PIN_5
-#define RELAY_STATUS_2_GPIO_Port GPIOB
-#define RELAY_STATUS_3_Pin GPIO_PIN_6
-#define RELAY_STATUS_3_GPIO_Port GPIOB
-#define RELAY_STATUS_4_Pin GPIO_PIN_7
-#define RELAY_STATUS_4_GPIO_Port GPIOB
-#define RELAY_STATUS_5_Pin GPIO_PIN_8
-#define RELAY_STATUS_5_GPIO_Port GPIOB
+#define RELAY_CONTROL_0_Pin GPIO_PIN_3
+#define RELAY_CONTROL_0_GPIO_Port GPIOB
+#define RELAY_CONTROL_1_Pin GPIO_PIN_4
+#define RELAY_CONTROL_1_GPIO_Port GPIOB
+#define RELAY_CONTROL_2_Pin GPIO_PIN_5
+#define RELAY_CONTROL_2_GPIO_Port GPIOB
+#define RELAY_CONTROL_3_Pin GPIO_PIN_6
+#define RELAY_CONTROL_3_GPIO_Port GPIOB
+#define RELAY_CONTROL_4_Pin GPIO_PIN_7
+#define RELAY_CONTROL_4_GPIO_Port GPIOB
+#define RELAY_CONTROL_5_Pin GPIO_PIN_8
+#define RELAY_CONTROL_5_GPIO_Port GPIOB
 #define RELAY_CONTROL_ENABLE_Pin GPIO_PIN_9
 #define RELAY_CONTROL_ENABLE_GPIO_Port GPIOB
 
