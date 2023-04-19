@@ -79,7 +79,7 @@ extern "C" {
 #define DECIMAL_TO_BCD(x)                       (((x / 10) << 4) | (x % 10))
 #define BCD_TO_DECIMAL(x)                       (((x >> 4) * 10) + (x & 0x0F))
 #define CHAR_TO_INT(x)                          (x <= 57 ? (x - 48) : (x - 55))
-#define FLASH_SECTOR_ADDRESS(x)                 (x * 4096)
+#define FLASH_SECTOR_ADDRESS(x)                 ((x) * 4096)
 #define DATETIME_CRITERION(a, b, c, d, e, f)    (a >= 0 && a <= 99 && b >= 1 && b <= 12 && c >= 1 && c <= 31 && d >= 0 && d <= 23 && e >= 0 && e <= 59 && f >= 0 && f <= 59)
 /* USER CODE END EM */
 

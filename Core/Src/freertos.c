@@ -75,6 +75,10 @@ extern CRC_HandleTypeDef hcrc;
 #define fathometerStatFlag5     23
 #define fathometerStatFlag6     22
 #define fathometerDataReadyFlag 21
+#define flashDataPointerFlag    20
+#define uplinkTimeoutFlag       19
+#define maintenanceFlag         17
+#define voltageFlag             16
 
 
 
@@ -333,7 +337,7 @@ const osThreadAttr_t mainTask_attributes = {
 osThreadId_t serialProcessHandle;
 const osThreadAttr_t serialProcess_attributes = {
         .name = "serialProcess",
-        .stack_size = 3072 * 4,
+        .stack_size = 2048 * 4,
         .priority = (osPriority_t) osPriorityRealtime,
 };
 /* Definitions for heartbeatTimer */
@@ -439,17 +443,25 @@ void osMainEntry(void *argument) {
 
     peripheralInit();
 
-
-    float a = 21.825;
-    flashDataStruct.floatAccess[0] = a;
-    printf("a: %.2f, %08lX\r\n", flashDataStruct.floatAccess[0], flashDataStruct.wordAccess[0]);
-
     /* Infinite loop */
     for (;;) {
-//        G_SMS_REFRESH(currentChannel);
 
-
-        osDelay(100);
+        osDelay(1000);
+        vTaskSuspendAll();
+        if (flashDataPointerStart == flashDataPointerEnd && flashDataPointerStart > 600) {
+            setFlashDPTR(0, 0);
+            getFlashDPTR();
+        }
+        xTaskResumeAll();
+        if (GET_MAIN_VOLTAGE(AD_DMA_BUFFER[0]) > 24.5 || GET_MAIN_VOLTAGE(AD_DMA_BUFFER[0]) < 23.5) {
+            G_SET_BIT(statusReg, voltageFlag);
+        }
+        if (BCD_TO_DECIMAL(currentTime.Hours) == 1 && BCD_TO_DECIMAL(currentTime.Minutes) == 45 &&
+            BCD_TO_DECIMAL(currentTime.Minutes) <= 50) {
+            if (G_GET_BIT(statusReg, taskFlag) == 1) {
+                G_SYSTEM_RESET();
+            }
+        }
 
     }
     /* USER CODE END osMainEntry */
@@ -474,6 +486,7 @@ void serialCommandProcess(void *argument) {
             osDelay(1);
             switch (RxMainBuffer[2]) {
                 case 'I': {
+                    getFlashDPTR();
                     printf(SERIAL_FEEDBACK_INFO_QUERY_STATUS, statusReg,
                            flashDataPointerEnd - flashDataPointerStart,
                            GET_SYSTEM_VOLTAGE(AD_DMA_BUFFER[1]), GET_MAIN_VOLTAGE(AD_DMA_BUFFER[0]));
@@ -547,57 +560,6 @@ void serialCommandProcess(void *argument) {
                     }
                     break;
                 }
-                case 'D': {
-                    char rtcSetBuffer[12];
-                    int stdFlag = 0, proceedFlag = 0;
-                    for (int i = 0; i < 12; ++i) {
-                        if (CHAR_NUMBER_CRITERION(RxMainBuffer[3 + i])) {
-                            rtcSetBuffer[i] = RxMainBuffer[3 + i];
-                            stdFlag++;
-                        } else {
-                            break;
-                        }
-                    }
-                    if (stdFlag == 12) {
-                        int year = CHAR_TO_INT(rtcSetBuffer[0]) * 10 +
-                                   CHAR_TO_INT(rtcSetBuffer[1]);
-                        int month = CHAR_TO_INT(rtcSetBuffer[2]) * 10 +
-                                    CHAR_TO_INT(rtcSetBuffer[3]);
-                        int day = CHAR_TO_INT(rtcSetBuffer[4]) * 10 +
-                                  CHAR_TO_INT(rtcSetBuffer[5]);
-                        int hour = CHAR_TO_INT(rtcSetBuffer[6]) * 10 +
-                                   CHAR_TO_INT(rtcSetBuffer[7]);
-                        int minute = CHAR_TO_INT(rtcSetBuffer[8]) * 10 +
-                                     CHAR_TO_INT(rtcSetBuffer[9]);
-                        int second = CHAR_TO_INT(rtcSetBuffer[10]) * 10 +
-                                     CHAR_TO_INT(rtcSetBuffer[11]);
-                        if (DATETIME_CRITERION(year, month, day, hour, minute, second)) {
-                            RTC_DateTypeDef DateToUpdate = {0};
-                            DateToUpdate.WeekDay = RTC_WEEKDAY_WEDNESDAY;
-                            DateToUpdate.Month = (month);
-                            DateToUpdate.Date = (day);
-                            DateToUpdate.Year = (year);
-                            RTC_TimeTypeDef sTime = {0};
-                            sTime.Hours = DECIMAL_TO_BCD(hour);
-                            sTime.Minutes = DECIMAL_TO_BCD(minute);
-                            sTime.Seconds = DECIMAL_TO_BCD(second);
-                            HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BCD);
-                            HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
-                            proceedFlag = 1;
-                            printf(SERIAL_FEEDBACK_INFO_RTC_SET,
-                                   2000 + DateToUpdate.Year,
-                                   DateToUpdate.Month,
-                                   DateToUpdate.Date,
-                                   BCD_TO_DECIMAL(sTime.Hours),
-                                   BCD_TO_DECIMAL(sTime.Minutes),
-                                   BCD_TO_DECIMAL(sTime.Seconds));
-                        }
-                    }
-                    if (proceedFlag == 0) {
-                        printf(SERIAL_FEEDBACK_ERROR_RTC_INVALID);
-                    }
-                    break;
-                }
                 case 'd': {
                     RTC_DATETIME_PRINT(SERIAL_FEEDBACK_INFO_GET_RTC_TIME);
                     break;
@@ -620,9 +582,11 @@ void serialCommandProcess(void *argument) {
                     printf("R*EF22789445645678,wert1234,gfds4567,456e4563,gdfgd523,gfds4567,gfds4567,gfds4567\r\n");
                     printf("%lu\r\n", uxTaskGetStackHighWaterMark(serialProcessHandle));
                     taskTickCount = 0;
+                    BSP_W25Qx_Erase_Chip();
                     break;
                 }
                 case 'T': {
+                    getFlashDPTR();
                     char taskSetBuffer[14];
                     int stdFlag = 0;
                     for (int i = 0; i < 14; ++i) {
@@ -660,9 +624,7 @@ void serialCommandProcess(void *argument) {
                                 taskDataStruct.intAccess[3] = hour;
                                 taskDataStruct.intAccess[4] = minute;
                                 taskDataStruct.intAccess[5] = second;
-                                taskDataStruct.intAccess[6] = flashDataPointerStart + 1;
-                                G_CLEAR_BIT(statusReg, taskFlag);
-                                printf(SERIAL_FEEDBACK_INFO_TASK_CREATE, taskDataStruct.intAccess[6]);
+                                taskDataStruct.intAccess[6] = flashDataPointerEnd + 1;
 
                                 int zMonth = month, zYear = year, zYearPrefix = year / 100;
                                 if (month == 1 || month == 2) {
@@ -707,6 +669,8 @@ void serialCommandProcess(void *argument) {
                                 sTime.Seconds = DECIMAL_TO_BCD(second);
                                 HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BCD);
                                 HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+                                printf(SERIAL_FEEDBACK_INFO_TASK_CREATE, taskDataStruct.intAccess[6]);
+                                G_CLEAR_BIT(statusReg, taskFlag);
                             } else {
                                 printf(SERIAL_FEEDBACK_ERROR_TASK_BUSY);
                             }
@@ -718,12 +682,73 @@ void serialCommandProcess(void *argument) {
                     }
                     break;
                 }
-                case 'C': {
-                    uint32_t Data_buffer[6] = {0x41AE999A, 0x41AE999B, 0x41AE999C, 0x41AE999D, 0x41AE999E, 0x41AE999F};
-                    printf("CRC: %08lX\r\n", HAL_CRC_Calculate(&hcrc, Data_buffer, 6));
+                case 'F': {
+                    getFlashDPTR();
+                    if (flashDataPointerStart == flashDataPointerEnd) {
+                        printf(SERIAL_FEEDBACK_ERROR_FLASH__POINTER);
+                    } else {
+                        BSP_W25Qx_Read((uint8_t *) &flashDataStruct, FLASH_SECTOR_ADDRESS(flashDataPointerStart + 101),
+                                       52);
+                        printf(SERIAL_FEEDBACK_INFO_FETCH_DATA,
+                               flashDataStruct.intAccess[0], flashDataStruct.intAccess[1], flashDataStruct.intAccess[2],
+                               flashDataStruct.intAccess[3], flashDataStruct.intAccess[4], flashDataStruct.intAccess[5],
+                               flashDataStruct.intAccess[6], flashDataStruct.wordAccess[7],
+                               flashDataStruct.wordAccess[8], flashDataStruct.wordAccess[9],
+                               flashDataStruct.wordAccess[10], flashDataStruct.wordAccess[11],
+                               flashDataStruct.wordAccess[12]);
+
+                    }
                     break;
                 }
+                case 'C': {
+                    int stdFlag = 0;
+                    for (int i = 0; i < 8; ++i) {
+                        if (CHAR_ASCII_CRITERION(RxMainBuffer[3 + i])) {
+                        } else {
+                            stdFlag = 1;
+                            break;
+                        }
+                    }
+                    if (stdFlag == 0) {
+                        getFlashDPTR();
+                        if (flashDataPointerStart == flashDataPointerEnd) {
+                            printf(SERIAL_FEEDBACK_ERROR_FLASH__POINTER);
+                        } else {
+                            int crc = CHAR_TO_INT(RxMainBuffer[3]) * 16 * 16 * 16 * 16 * 16 * 16 * 16 +
+                                      CHAR_TO_INT(RxMainBuffer[4]) * 16 * 16 * 16 * 16 * 16 * 16 +
+                                      CHAR_TO_INT(RxMainBuffer[5]) * 16 * 16 * 16 * 16 * 16 +
+                                      CHAR_TO_INT(RxMainBuffer[6]) * 16 * 16 * 16 * 16 +
+                                      CHAR_TO_INT(RxMainBuffer[7]) * 16 * 16 * 16 +
+                                      CHAR_TO_INT(RxMainBuffer[8]) * 16 * 16 +
+                                      CHAR_TO_INT(RxMainBuffer[9]) * 16 +
+                                      CHAR_TO_INT(RxMainBuffer[10]);
+                            BSP_W25Qx_Read((uint8_t *) &flashDataStruct,
+                                           FLASH_SECTOR_ADDRESS(flashDataPointerStart + 101),
+                                           52);
+                            uint32_t Data_buffer[6] = {flashDataStruct.wordAccess[7], flashDataStruct.wordAccess[8],
+                                                       flashDataStruct.wordAccess[9], flashDataStruct.wordAccess[10],
+                                                       flashDataStruct.wordAccess[11], flashDataStruct.wordAccess[12]};
+                            if (crc == HAL_CRC_Calculate(&hcrc, Data_buffer, 6)) {
+                                printf(SERIAL_FEEDBACK_INFO_CRC_PASS, flashDataStruct.intAccess[0],
+                                       flashDataStruct.intAccess[1], flashDataStruct.intAccess[2],
+                                       flashDataStruct.intAccess[3], flashDataStruct.intAccess[4],
+                                       flashDataStruct.intAccess[5]);
+                                setFlashDPTR(flashDataPointerStart + 1, flashDataPointerEnd);
+                            } else {
+                                printf(SERIAL_FEEDBACK_ERROR_CRC_FAIL);
+                            }
+                        }
+                    } else {
+                        printf(SERIAL_FEEDBACK_ERROR_CRC_ILLEGAL);
+                    }
 
+                    break;
+                }
+                case 'E': {
+                    setFlashDPTR(0, 0);
+                    printf(SERIAL_FEEDBACK_INFO_FLASH_ERASE);
+                    break;
+                }
                 default: {
                     printf(SERIAL_FEEDBACK_ERROR_COMMAND_NOT_FOUND);
                 }
@@ -771,67 +796,21 @@ void heartbeatCallback(void *argument) {
             case 6: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
-                    G_CLEAR_BIT(statusReg, fathometerStatFlag1);
-                } else {
                     G_SET_BIT(statusReg, fathometerStatFlag1);
+                } else {
+                    G_CLEAR_BIT(statusReg, fathometerStatFlag1);
                 }
                 break;
             }
-            case 10: {
+            case 30: {
                 G_SET_BIT(statusReg, fathometerDataReadyFlag);
                 currentChannel = 2;
                 G_RELAY_CONTROL_REFRESH(currentChannel);
                 G_SMS_REFRESH(currentChannel);
                 break;
             }
-            case 11: {
-                G_CONTROL_COMMAND_SEND();
-                break;
-            }
-            case 13:
-            case 14:
-            case 15:
-            case 16: {
-                if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
-                    G_CONTROL_COMMAND_SEND();
-                    G_CLEAR_BIT(statusReg, fathometerStatFlag2);
-                } else {
-                    G_SET_BIT(statusReg, fathometerStatFlag2);
-                }
-                break;
-            }
-            case 20: {
-                G_SET_BIT(statusReg, fathometerDataReadyFlag);
-                currentChannel = 3;
-                G_RELAY_CONTROL_REFRESH(currentChannel);
-                break;
-            }
-            case 21: {
-                G_CONTROL_COMMAND_SEND();
-                G_SMS_REFRESH(currentChannel);
-                break;
-            }
-            case 23:
-            case 24:
-            case 25:
-            case 26: {
-                if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
-                    G_CONTROL_COMMAND_SEND();
-                    G_CLEAR_BIT(statusReg, fathometerStatFlag3);
-                } else {
-                    G_SET_BIT(statusReg, fathometerStatFlag3);
-                }
-                break;
-            }
-            case 30: {
-                G_SET_BIT(statusReg, fathometerDataReadyFlag);
-                currentChannel = 4;
-                G_RELAY_CONTROL_REFRESH(currentChannel);
-                break;
-            }
             case 31: {
                 G_CONTROL_COMMAND_SEND();
-                G_SMS_REFRESH(currentChannel);
                 break;
             }
             case 33:
@@ -840,60 +819,106 @@ void heartbeatCallback(void *argument) {
             case 36: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
-                    G_CLEAR_BIT(statusReg, fathometerStatFlag4);
+                    G_SET_BIT(statusReg, fathometerStatFlag2);
                 } else {
-                    G_SET_BIT(statusReg, fathometerStatFlag4);
+                    G_CLEAR_BIT(statusReg, fathometerStatFlag2);
                 }
                 break;
             }
-            case 40: {
+            case 60: {
+                G_SET_BIT(statusReg, fathometerDataReadyFlag);
+                currentChannel = 3;
+                G_RELAY_CONTROL_REFRESH(currentChannel);
+                break;
+            }
+            case 61: {
+                G_CONTROL_COMMAND_SEND();
+                G_SMS_REFRESH(currentChannel);
+                break;
+            }
+            case 63:
+            case 64:
+            case 65:
+            case 66: {
+                if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
+                    G_CONTROL_COMMAND_SEND();
+                    G_SET_BIT(statusReg, fathometerStatFlag3);
+                } else {
+                    G_CLEAR_BIT(statusReg, fathometerStatFlag3);
+                }
+                break;
+            }
+            case 90: {
+                G_SET_BIT(statusReg, fathometerDataReadyFlag);
+                currentChannel = 4;
+                G_RELAY_CONTROL_REFRESH(currentChannel);
+                break;
+            }
+            case 91: {
+                G_CONTROL_COMMAND_SEND();
+                G_SMS_REFRESH(currentChannel);
+                break;
+            }
+            case 93:
+            case 94:
+            case 95:
+            case 96:{
+                if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
+                    G_CONTROL_COMMAND_SEND();
+                    G_SET_BIT(statusReg, fathometerStatFlag4);
+                } else {
+                    G_CLEAR_BIT(statusReg, fathometerStatFlag4);
+                }
+                break;
+            }
+            case 120: {
                 G_SET_BIT(statusReg, fathometerDataReadyFlag);
                 currentChannel = 5;
                 G_RELAY_CONTROL_REFRESH(currentChannel);
                 break;
             }
-            case 41: {
+            case 121: {
                 G_CONTROL_COMMAND_SEND();
                 G_SMS_REFRESH(currentChannel);
                 break;
             }
-            case 43:
-            case 44:
-            case 45:
-            case 46: {
+            case 123:
+            case 124:
+            case 125:
+            case 126: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
-                    G_CLEAR_BIT(statusReg, fathometerStatFlag5);
-                } else {
                     G_SET_BIT(statusReg, fathometerStatFlag5);
+                } else {
+                    G_CLEAR_BIT(statusReg, fathometerStatFlag5);
                 }
                 break;
             }
-            case 50: {
+            case 150: {
                 G_SET_BIT(statusReg, fathometerDataReadyFlag);
                 currentChannel = 6;
                 G_RELAY_CONTROL_REFRESH(currentChannel);
                 break;
             }
-            case 51: {
+            case 151: {
                 G_CONTROL_COMMAND_SEND();
                 G_SMS_REFRESH(currentChannel);
                 break;
             }
-            case 53:
-            case 54:
-            case 55:
-            case 56: {
+            case 153:
+            case 154:
+            case 155:
+            case 156: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
-                    G_CLEAR_BIT(statusReg, fathometerStatFlag6);
-                } else {
                     G_SET_BIT(statusReg, fathometerStatFlag6);
+                } else {
+                    G_CLEAR_BIT(statusReg, fathometerStatFlag6);
                 }
                 break;
             }
             default: {
-                if (taskTickCount >= 60) {
+                if (taskTickCount >= 180) {
                     G_RELAY_CONTROL_REFRESH(10);
                     taskTickCount = -1;
                     G_SET_BIT(statusReg, taskFlag);
@@ -906,12 +931,17 @@ void heartbeatCallback(void *argument) {
                                                             0 : sum / (float) (taskCountBuffer[i] > 20 ? 20
                                                                                                        : taskCountBuffer[i]);
                     }
-                    printf("%d %d %d %d %d %d | %d | %.2f %.2f %.2f %.2f %.2f %.2f\r\n", taskDataStruct.intAccess[0],
-                           taskDataStruct.intAccess[1], taskDataStruct.intAccess[2], taskDataStruct.intAccess[3],
-                           taskDataStruct.intAccess[4], taskDataStruct.intAccess[5], taskDataStruct.intAccess[6],
-                           taskDataStruct.floatAccess[7], taskDataStruct.floatAccess[8], taskDataStruct.floatAccess[9],
-                           taskDataStruct.floatAccess[10], taskDataStruct.floatAccess[11],
-                           taskDataStruct.floatAccess[12]);
+//                    printf("%d %d %d %d %d %d | %d | %.2f %.2f %.2f %.2f %.2f %.2f\r\n", taskDataStruct.intAccess[0],
+//                           taskDataStruct.intAccess[1], taskDataStruct.intAccess[2], taskDataStruct.intAccess[3],
+//                           taskDataStruct.intAccess[4], taskDataStruct.intAccess[5], taskDataStruct.intAccess[6],
+//                           taskDataStruct.floatAccess[7], taskDataStruct.floatAccess[8], taskDataStruct.floatAccess[9],
+//                           taskDataStruct.floatAccess[10], taskDataStruct.floatAccess[11],
+//                           taskDataStruct.floatAccess[12]);
+                    BSP_W25Qx_Erase_Block(FLASH_SECTOR_ADDRESS(taskDataStruct.intAccess[6] + 100));
+                    BSP_W25Qx_Write((uint8_t *) &taskDataStruct,
+                                    FLASH_SECTOR_ADDRESS(taskDataStruct.intAccess[6] + 100),
+                                    52);
+                    setFlashDPTR(flashDataPointerStart, taskDataStruct.intAccess[6]);
                 }
             }
         }
@@ -968,7 +998,6 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
                         for (int i = depthPointer + 1; i < Size - 8; ++i) {
                             depth += (float) (CHAR_TO_INT(RxMainBufferSlave[i]) * pow(10, depthPointer - i));
                         }
-                        printf("%.2f\r\n", depth);
                         taskCountBuffer[currentChannel - 1]++;
                         for (int i = 0; i < 19; ++i) {
                             taskDepthBuffer[currentChannel - 1][i] = taskDepthBuffer[currentChannel - 1][i + 1];
@@ -981,9 +1010,9 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
             HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxBufferSlave, RX_BUFFER_SIZE);
             __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
         } else {
-            for (int i = 0; i < Size; ++i) {
-                HAL_UART_Transmit(&huart2, (uint8_t *) &RxMainBufferSlave[i], 1, 10);
-            }
+//            for (int i = 0; i < Size; ++i) {
+//                HAL_UART_Transmit(&huart2, (uint8_t *) &RxMainBufferSlave[i], 1, 10);
+//            }
             HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxBufferSlave, RX_BUFFER_SIZE);
             __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 
@@ -1128,15 +1157,16 @@ void peripheralInit(void) {
         printf(SERIAL_FEEDBACK_INFO_FLASH_INIT);
     }
     getFlashDPTR();
-    if (!(flashDataPointerStart == 0 && flashDataPointerEnd == 0)) {
-        printf(SERIAL_FEEDBACK_INFO_RECORDS_ALERT, flashDataPointerEnd - flashDataPointerStart);
-    }
+    G_CLEAR_BIT(statusReg, flashDataPointerFlag);
+    printf(SERIAL_FEEDBACK_INFO_RECORDS_ALERT, flashDataPointerEnd - flashDataPointerStart);
 
     //Serial Terminal Init
     while (HAL_UARTEx_ReceiveToIdle_DMA(&huart2, RxBuffer, RX_BUFFER_SIZE) != HAL_OK);
     __HAL_DMA_DISABLE_IT(&hdma_usart2_rx, DMA_IT_HT);
     while (HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxBufferSlave, RX_BUFFER_SIZE) != HAL_OK);
     __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+
+    G_CLEAR_BIT(statusReg, voltageFlag);
 }
 
 void getFlashDPTR(void) {
@@ -1166,7 +1196,6 @@ void getFlashDPTR(void) {
             BSP_W25Qx_Write((uint8_t *) &flashDataStruct, FLASH_SECTOR_ADDRESS(11), 0x4);
         }
     }
-    printf("getFlashDPTR: %d|%d\r\n", flashDataPointerStart, flashDataPointerEnd);
 }
 
 void setFlashDPTR(int start, int end) {
