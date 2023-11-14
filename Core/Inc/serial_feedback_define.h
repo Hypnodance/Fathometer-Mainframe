@@ -28,6 +28,8 @@
 #define SERIAL_FEEDBACK_INFO_TASK_CREATE                                "R*T%d\r\n"
 #define SERIAL_FEEDBACK_INFO_GET_SERIAL_NUMBER                          "R*s%s\r\n"
 #define SERIAL_FEEDBACK_INFO_FLASH_ERASE                                "R*X\r\n"
+#define SERIAL_FEEDBACK_INFO_DEBUG_ON                                   "R*Start Debug Mode\r\n"
+#define SERIAL_FEEDBACK_INFO_DEBUG_OFF                                  "R*Stop Debug Mode\r\n"
 #define SERIAL_FEEDBACK_INFO_CRC_PASS                                   "R*C20%02d%02d%02d%02d%02d%02d\r\n"
 #define SERIAL_FEEDBACK_INFO_QUERY_STATUS                               "R*I%08lX,%d,%.2f,%.2f\r\n"
 #define SERIAL_FEEDBACK_INFO_FETCH_DATA                                 "R*F20%02d%02d%02d%02d%02d%02d,%d,%08lX,%08lX,%08lX,%08lX,%08lX,%08lX\r\n"

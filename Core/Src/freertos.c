@@ -295,13 +295,7 @@ RELAY_CONTROL_REFRESH_PROTOTYPE {
     HAL_GPIO_WritePin(RELAY_CONTROL_ENABLE_GPIO_Port, RELAY_CONTROL_ENABLE_Pin, GPIO_PIN_RESET);
 }
 
-CONTROL_COMMAND_SEND_PROTOTYPE {
-    uint8_t test[9] = {'$', 'R', 'u', 'n', '=', '1', '0', '\r', '\n'};
-    HAL_GPIO_WritePin(DE485_GPIO_Port, DE485_Pin, GPIO_PIN_SET);
-    osDelay(1);
-    HAL_UART_Transmit(&huart1, (uint8_t *) &test, 9, 20);
-    HAL_GPIO_WritePin(DE485_GPIO_Port, DE485_Pin, GPIO_PIN_RESET);
-}
+
 
 /* USER CODE END PM */
 
@@ -325,6 +319,18 @@ union G_FLASH_DS flashDataStruct;
 union G_TASK_DS taskDataStruct;
 int flashDataPointerStart;
 int flashDataPointerEnd;
+int debugFlag = 0;
+
+CONTROL_COMMAND_SEND_PROTOTYPE {
+    HAL_UART_DMAStop(&huart1);
+    uint8_t test[8] = {'$', 'R', 'u', 'n', '=', '1', '\r', '\n'};
+    HAL_GPIO_WritePin(DE485_GPIO_Port, DE485_Pin, GPIO_PIN_SET);
+    osDelay(1);
+    HAL_UART_Transmit(&huart1, (uint8_t *) &test, 9, 20);
+    HAL_GPIO_WritePin(DE485_GPIO_Port, DE485_Pin, GPIO_PIN_RESET);
+    while (HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxBufferSlave, RX_BUFFER_SIZE) != HAL_OK);
+    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+}
 /* USER CODE END Variables */
 /* Definitions for mainTask */
 osThreadId_t mainTaskHandle;
@@ -448,7 +454,7 @@ void osMainEntry(void *argument) {
 
         osDelay(1000);
         vTaskSuspendAll();
-        if (flashDataPointerStart == flashDataPointerEnd && flashDataPointerStart > 600) {
+        if ((flashDataPointerStart == flashDataPointerEnd) && (flashDataPointerStart > 600)) {
             setFlashDPTR(0, 0);
             getFlashDPTR();
         }
@@ -749,6 +755,16 @@ void serialCommandProcess(void *argument) {
                     printf(SERIAL_FEEDBACK_INFO_FLASH_ERASE);
                     break;
                 }
+                case 'D': {
+                    if (debugFlag == 0) {
+                        debugFlag = 1;
+                        printf(SERIAL_FEEDBACK_INFO_DEBUG_ON);
+                    } else {
+                        debugFlag = 0;
+                        printf(SERIAL_FEEDBACK_INFO_DEBUG_OFF);
+                    }
+                    break;
+                }
                 default: {
                     printf(SERIAL_FEEDBACK_ERROR_COMMAND_NOT_FOUND);
                 }
@@ -973,8 +989,33 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
     } else if (huart->Instance == USART1) {
         G_SMS_REFRESH(8);
         memcpy((uint8_t *) RxMainBufferSlave, RxBufferSlave, Size);
-        if (RxMainBufferSlave[0] == 0x24 && RxMainBufferSlave[Size - 2] == 0x0D &&
-            RxMainBufferSlave[Size - 1] == 0x0A) {
+        uint16_t SizeBackup = Size;
+//        for (int i = 0; i < Size; ++i) {
+//            HAL_UART_Transmit(&huart2, (uint8_t *) &RxMainBufferSlave[i], 1, 10);
+//        }
+
+        int dollarFlag = -1, crFlag = -1, lfFlag = -1, processFlag = 0;
+        for (int i = 0; i < Size; ++i) {
+            if (RxMainBufferSlave[i] == 0x24) {
+                dollarFlag = i;
+                crFlag = -1;
+                lfFlag = -1;
+            } else if (RxMainBufferSlave[i] == 0x0D) {
+                crFlag = i;
+            } else if (RxMainBufferSlave[i] == 0x0A) {
+                lfFlag = i;
+            }
+            if (dollarFlag != -1 && crFlag != -1 && lfFlag != -1) {
+                break;
+            }
+        }
+        if (dollarFlag != -1 && crFlag != -1 && lfFlag != -1 && lfFlag - crFlag == 1) {
+            if (dollarFlag != 0) {
+                for (int i = 0; i < Size - dollarFlag; ++i) {
+                    RxMainBufferSlave[i] = RxMainBufferSlave[i + dollarFlag];
+                }
+            }
+            Size = lfFlag - dollarFlag + 1;
             if (RxMainBufferSlave[Size - 5] == 0x2A && RxMainBufferSlave[Size - 6] == 0x2C &&
                 RxMainBufferSlave[Size - 8] == 0x2C) {
                 if (RxMainBufferSlave[Size - 7] == 0x20) {
@@ -1003,21 +1044,23 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
                             taskDepthBuffer[currentChannel - 1][i] = taskDepthBuffer[currentChannel - 1][i + 1];
                         }
                         taskDepthBuffer[currentChannel - 1][19] = depth;
+                        processFlag = 1;
+                        printf("%.2f\r\n", depth);
                         G_CLEAR_BIT(statusReg, fathometerDataReadyFlag);
                     }
                 }
             }
-            HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxBufferSlave, RX_BUFFER_SIZE);
-            __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-        } else {
-//            for (int i = 0; i < Size; ++i) {
-//                HAL_UART_Transmit(&huart2, (uint8_t *) &RxMainBufferSlave[i], 1, 10);
-//            }
-            HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxBufferSlave, RX_BUFFER_SIZE);
-            __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-
+        }
+        if (processFlag == 0 && debugFlag == 1) {
+            printf("[Debug Serial Receive]");
+            for (int i = 0; i < SizeBackup; ++i) {
+                printf("%c", RxMainBufferSlave[i]);
+            }
+            printf("[EndDebug]\r\n");
         }
         G_SMS_REFRESH(currentChannel);
+        HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxBufferSlave, RX_BUFFER_SIZE);
+        __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
     }
 }
 
@@ -1122,6 +1165,7 @@ void peripheralInit(void) {
     //Serial Number
     G_SN_PRINT(0);
     HAL_GPIO_WritePin(RS485_232_GPIO_Port, RS485_232_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(DE485_GPIO_Port, DE485_Pin, GPIO_PIN_RESET);
 
     //Baud Rate
     printf(SERIAL_FEEDBACK_INFO_GET_BAUD_RATE);
