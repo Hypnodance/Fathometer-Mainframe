@@ -295,7 +295,16 @@ RELAY_CONTROL_REFRESH_PROTOTYPE {
     HAL_GPIO_WritePin(RELAY_CONTROL_ENABLE_GPIO_Port, RELAY_CONTROL_ENABLE_Pin, GPIO_PIN_RESET);
 }
 
-
+CONTROL_COMMAND_SEND_PROTOTYPE {
+//    HAL_UART_DMAStop(&huart1);
+    uint8_t test[8] = {'$', 'R', 'u', 'n', '=', '1', '\r', '\n'};
+    HAL_GPIO_WritePin(DE485_GPIO_Port, DE485_Pin, GPIO_PIN_SET);
+    osDelay(1);
+    HAL_UART_Transmit(&huart1, (uint8_t *) &test, 9, 20);
+    HAL_GPIO_WritePin(DE485_GPIO_Port, DE485_Pin, GPIO_PIN_RESET);
+//    while (HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxBufferSlave, RX_BUFFER_SIZE) != HAL_OK);
+//    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+}
 
 /* USER CODE END PM */
 
@@ -321,16 +330,6 @@ int flashDataPointerStart;
 int flashDataPointerEnd;
 int debugFlag = 0;
 
-CONTROL_COMMAND_SEND_PROTOTYPE {
-    HAL_UART_DMAStop(&huart1);
-    uint8_t test[8] = {'$', 'R', 'u', 'n', '=', '1', '\r', '\n'};
-    HAL_GPIO_WritePin(DE485_GPIO_Port, DE485_Pin, GPIO_PIN_SET);
-    osDelay(1);
-    HAL_UART_Transmit(&huart1, (uint8_t *) &test, 9, 20);
-    HAL_GPIO_WritePin(DE485_GPIO_Port, DE485_Pin, GPIO_PIN_RESET);
-    while (HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxBufferSlave, RX_BUFFER_SIZE) != HAL_OK);
-    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-}
 /* USER CODE END Variables */
 /* Definitions for mainTask */
 osThreadId_t mainTaskHandle;
@@ -463,7 +462,7 @@ void osMainEntry(void *argument) {
             G_SET_BIT(statusReg, voltageFlag);
         }
         if (BCD_TO_DECIMAL(currentTime.Hours) == 1 && BCD_TO_DECIMAL(currentTime.Minutes) == 45 &&
-            BCD_TO_DECIMAL(currentTime.Minutes) <= 50) {
+            BCD_TO_DECIMAL(currentTime.Seconds) <= 20) {
             if (G_GET_BIT(statusReg, taskFlag) == 1) {
                 G_SYSTEM_RESET();
             }
@@ -758,9 +757,68 @@ void serialCommandProcess(void *argument) {
                 case 'D': {
                     if (debugFlag == 0) {
                         debugFlag = 1;
+                        switch (RxMainBuffer[3]) {
+                            case '1': {
+                                G_RELAY_CONTROL_REFRESH(1);
+                                G_SMS_REFRESH(1);
+                                currentChannel = 1;
+                                osDelay(5);
+                                G_CONTROL_COMMAND_SEND();
+                                break;
+                            }
+                            case '2': {
+                                G_RELAY_CONTROL_REFRESH(2);
+                                G_SMS_REFRESH(2);
+                                currentChannel = 2;
+                                osDelay(5);
+                                G_CONTROL_COMMAND_SEND();
+                                break;
+                            }
+                            case '3': {
+                                G_RELAY_CONTROL_REFRESH(3);
+                                G_SMS_REFRESH(3);
+                                currentChannel = 3;
+                                osDelay(5);
+                                G_CONTROL_COMMAND_SEND();
+                                break;
+                            }
+                            case '4': {
+                                G_RELAY_CONTROL_REFRESH(4);
+                                G_SMS_REFRESH(4);
+                                currentChannel = 4;
+                                osDelay(5);
+                                G_CONTROL_COMMAND_SEND();
+                                break;
+                            }
+                            case '5': {
+                                G_RELAY_CONTROL_REFRESH(5);
+                                G_SMS_REFRESH(5);
+                                currentChannel = 5;
+                                osDelay(5);
+                                G_CONTROL_COMMAND_SEND();
+                                break;
+                            }
+                            case '6': {
+                                G_RELAY_CONTROL_REFRESH(6);
+                                G_SMS_REFRESH(6);
+                                currentChannel = 6;
+                                osDelay(5);
+                                G_CONTROL_COMMAND_SEND();
+                                break;
+                            }
+                            default: {
+                                G_RELAY_CONTROL_REFRESH(10);
+                                G_SMS_REFRESH(1);
+                                currentChannel = 1;
+                                break;
+                            }
+                        }
                         printf(SERIAL_FEEDBACK_INFO_DEBUG_ON);
                     } else {
                         debugFlag = 0;
+                        G_RELAY_CONTROL_REFRESH(10);
+                        G_SMS_REFRESH(1);
+                        currentChannel = 1;
                         printf(SERIAL_FEEDBACK_INFO_DEBUG_OFF);
                     }
                     break;
@@ -1045,7 +1103,11 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
                         }
                         taskDepthBuffer[currentChannel - 1][19] = depth;
                         processFlag = 1;
-                        printf("%.2f\r\n", depth);
+                        if (debugFlag == 1) {
+                            printf("[Debug Calculate Depth]");
+                            printf("%.2f", depth);
+                            printf("[EndDebug]\r\n");
+                        }
                         G_CLEAR_BIT(statusReg, fathometerDataReadyFlag);
                     }
                 }
