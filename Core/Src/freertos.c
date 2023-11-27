@@ -870,10 +870,7 @@ void heartbeatCallback(void *argument) {
                 G_CONTROL_COMMAND_SEND();
                 break;
             }
-            case 3:
-            case 4:
-            case 5:
-            case 6: {
+            case 20: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
                     G_SET_BIT(statusReg, fathometerStatFlag1);
@@ -882,21 +879,18 @@ void heartbeatCallback(void *argument) {
                 }
                 break;
             }
-            case 30: {
+            case 40: {
                 G_SET_BIT(statusReg, fathometerDataReadyFlag);
                 currentChannel = 2;
                 G_RELAY_CONTROL_REFRESH(currentChannel);
                 G_SMS_REFRESH(currentChannel);
                 break;
             }
-            case 31: {
+            case 41: {
                 G_CONTROL_COMMAND_SEND();
                 break;
             }
-            case 33:
-            case 34:
-            case 35:
-            case 36: {
+            case 60: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
                     G_SET_BIT(statusReg, fathometerStatFlag2);
@@ -905,21 +899,18 @@ void heartbeatCallback(void *argument) {
                 }
                 break;
             }
-            case 60: {
+            case 80: {
                 G_SET_BIT(statusReg, fathometerDataReadyFlag);
                 currentChannel = 3;
                 G_RELAY_CONTROL_REFRESH(currentChannel);
-                break;
-            }
-            case 61: {
-                G_CONTROL_COMMAND_SEND();
                 G_SMS_REFRESH(currentChannel);
                 break;
             }
-            case 63:
-            case 64:
-            case 65:
-            case 66: {
+            case 81: {
+                G_CONTROL_COMMAND_SEND();
+                break;
+            }
+            case 100: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
                     G_SET_BIT(statusReg, fathometerStatFlag3);
@@ -928,21 +919,18 @@ void heartbeatCallback(void *argument) {
                 }
                 break;
             }
-            case 90: {
+            case 120: {
                 G_SET_BIT(statusReg, fathometerDataReadyFlag);
                 currentChannel = 4;
                 G_RELAY_CONTROL_REFRESH(currentChannel);
-                break;
-            }
-            case 91: {
-                G_CONTROL_COMMAND_SEND();
                 G_SMS_REFRESH(currentChannel);
                 break;
             }
-            case 93:
-            case 94:
-            case 95:
-            case 96:{
+            case 121: {
+                G_CONTROL_COMMAND_SEND();
+                break;
+            }
+            case 140: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
                     G_SET_BIT(statusReg, fathometerStatFlag4);
@@ -951,21 +939,18 @@ void heartbeatCallback(void *argument) {
                 }
                 break;
             }
-            case 120: {
+            case 160: {
                 G_SET_BIT(statusReg, fathometerDataReadyFlag);
                 currentChannel = 5;
                 G_RELAY_CONTROL_REFRESH(currentChannel);
-                break;
-            }
-            case 121: {
-                G_CONTROL_COMMAND_SEND();
                 G_SMS_REFRESH(currentChannel);
                 break;
             }
-            case 123:
-            case 124:
-            case 125:
-            case 126: {
+            case 161: {
+                G_CONTROL_COMMAND_SEND();
+                break;
+            }
+            case 180: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
                     G_SET_BIT(statusReg, fathometerStatFlag5);
@@ -974,21 +959,18 @@ void heartbeatCallback(void *argument) {
                 }
                 break;
             }
-            case 150: {
+            case 200: {
                 G_SET_BIT(statusReg, fathometerDataReadyFlag);
                 currentChannel = 6;
                 G_RELAY_CONTROL_REFRESH(currentChannel);
-                break;
-            }
-            case 151: {
-                G_CONTROL_COMMAND_SEND();
                 G_SMS_REFRESH(currentChannel);
                 break;
             }
-            case 153:
-            case 154:
-            case 155:
-            case 156: {
+            case 201: {
+                G_CONTROL_COMMAND_SEND();
+                break;
+            }
+            case 220: {
                 if (G_GET_BIT(statusReg, fathometerDataReadyFlag) == 1) {
                     G_CONTROL_COMMAND_SEND();
                     G_SET_BIT(statusReg, fathometerStatFlag6);
@@ -998,7 +980,7 @@ void heartbeatCallback(void *argument) {
                 break;
             }
             default: {
-                if (taskTickCount >= 180) {
+                if (taskTickCount >= 240) {
                     G_RELAY_CONTROL_REFRESH(10);
                     taskTickCount = -1;
                     G_SET_BIT(statusReg, taskFlag);

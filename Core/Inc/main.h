@@ -70,7 +70,7 @@ extern "C" {
 #define SN_PRINT_PROTOTYPE                      void G_SN_PRINT(uint32_t loc)
 #define SMS_REFRESH_PROTOTYPE                   void G_SMS_REFRESH(int status)
 #define RELAY_CONTROL_REFRESH_PROTOTYPE         void G_RELAY_CONTROL_REFRESH(int status)
-#define CONTROL_COMMAND_SEND_PROTOTYPE          void G_CONTROL_COMMAND_SEND()
+//#define CONTROL_COMMAND_SEND_PROTOTYPE          void G_CONTROL_COMMAND_SEND()
 #define RTC_DATETIME_PRINT(x)                   printf(x, 2000 + BCD_TO_DECIMAL(currentDate.Year), BCD_TO_DECIMAL(currentDate.Month), BCD_TO_DECIMAL(currentDate.Date), BCD_TO_DECIMAL(currentTime.Hours), BCD_TO_DECIMAL(currentTime.Minutes), BCD_TO_DECIMAL(currentTime.Seconds))
 #define CHAR_ASCII_CRITERION(x)                 (x >= 48 && x <= 57) || (x >= 65 && x <= 90) || (x >= 97 && x <= 122)
 #define CHAR_NUMBER_CRITERION(x)                (x >= 48 && x <= 57)
